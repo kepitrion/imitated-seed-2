@@ -82,6 +82,7 @@ async function init() {
 		'autologin_tokens': ['username', 'token'],
 		'trusted_devices': ['username', 'id'],
 		'api_tokens': ['username', 'token'],
+		'recover_account': ['key', 'username', 'email', 'time']
 	};
 	
 	// 테이블 만들기
@@ -120,14 +121,19 @@ wiki.use(express.static('public'));
 wiki.use(session({
 	key: 'kotori',
 	secret: rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 1024),
-	cookie: { expires: false },
+	cookie: {
+		expires: new Date(Date.now() + 1000 * 60 * 60 * 24),
+		httpOnly: true,
+		secure: true,
+		samesite: "lax"
+	},
 	resave: false,
-    saveUninitialized: true,
+	saveUninitialized: false,
 }));
 wiki.use(cookieParser());
 
 // 업데이트 수준
-const updatecode = '17';
+const updatecode = '18';
 
 // 보안을 위해...
 wiki.disable('x-powered-by');
@@ -174,7 +180,7 @@ wiki.all('*', async function(req, res, next) {
 	}
 	var autologin;
 	if(autologin = req.cookies['honoka']) {
-		const d = await curs.execute("select username, token from autologin_tokens where token = ?", [autologin]);
+		const d = await curs.execute("select username, token from autologin_tokens where token = ?", [sha3(autologin)]);
 		if(!d.length) {
 			delete req.session.username;
 			res.cookie('honoka', '', { expires: new Date(Date.now() - 1) });
@@ -442,6 +448,10 @@ wiki.use(function(req, res, next) {
 		} case 16: {
 			try {
 				await curs.execute("alter table users\nADD email text;");
+			} catch(e) {}
+		} case 17: {
+			try {
+				await curs.execute("create table recover_account (key text default '', username text default '', email text default '', time text default '')");
 			} catch(e) {}
 		}
 	}
